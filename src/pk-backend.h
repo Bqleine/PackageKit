@@ -36,7 +36,6 @@
 #include <packagekit-glib2/pk-bitfield.h>
 #include <packagekit-glib2/pk-update-detail.h>
 
-#include "pk-backend.h"
 #include "pk-backend-job.h"
 
 G_BEGIN_DECLS
@@ -265,4 +264,3 @@ void		 pk_backend_set_user_data		(PkBackend	*backend,
 G_END_DECLS
 
 #endif /* __PK_BACKEND_H */
-
