@@ -22,9 +22,17 @@
 #ifndef PK_GUILE_INTERFACE_H
 #define PK_GUILE_INTERFACE_H
 
-#include <libguile.h>
 #include "pk-backend.h"
+#include <libguile.h>
 
-void guix_search (PkBackendJob* job, GVariant* params, gpointer p);
+struct guix_job_data {
+	PkBackendJob *job;
+	GVariant *params;
+	const char *profiles;
+};
 
+void call_with_guile (PkBackendJob* job, GVariant* params, void *p);
+
+void guix_search (struct guix_job_data *data);
+void guix_resolve (struct guix_job_data *data);
 #endif

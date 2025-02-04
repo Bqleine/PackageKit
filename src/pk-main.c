@@ -103,7 +103,7 @@ main (int argc, char *argv[])
 	gboolean version = FALSE;
 	gboolean timed_exit = FALSE;
 	gboolean immediate_exit = FALSE;
-	gboolean keep_environment = FALSE;
+	gboolean keep_environment = TRUE;
 	gint exit_idle_time;
 	g_autoptr(GError) error = NULL;
 	g_autofree gchar *backend_name = NULL;

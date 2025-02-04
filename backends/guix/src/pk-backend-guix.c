@@ -22,6 +22,7 @@
 #include "pk-backend.h"
 #include "pk-backend-job.h"
 #include "pk-guile-interface.h"
+#include <stdio.h>
 
 const gchar *
 pk_backend_get_description (PkBackend *backend)
@@ -39,18 +40,6 @@ PkBitfield
 pk_backend_get_groups (PkBackend *backend)
 {
 	return 0;
-}
-
-PkBitfield
-pk_backend_get_filters (PkBackend *backend)
-{
-	return pk_bitfield_from_enums (
-		PK_FILTER_ENUM_SUPPORTED,
-		PK_FILTER_ENUM_NOT_SUPPORTED,
-		PK_FILTER_ENUM_INSTALLED,
-		PK_FILTER_ENUM_NOT_INSTALLED,
-		-1
-	);
 }
 
 void
@@ -96,6 +85,7 @@ pk_backend_refresh_cache (PkBackend *backend,
 		pk_backend_job_finished(job);
 		return;
 	}
+	/* guix pull? */
 	pk_backend_job_finished(job);
 }
 
@@ -104,9 +94,7 @@ void pk_backend_resolve (PkBackend *backend,
 			PkBitfield filters,
 			gchar **packages)
 {
-	pk_backend_job_package (job, PK_INFO_ENUM_AVAILABLE, pk_package_id_build("hello", "3.5", "x86_64", "guix"), "Hey, I am a package");
-	pk_backend_job_package (job, PK_INFO_ENUM_AVAILABLE, pk_package_id_build("openttd", "14.1", "x86_64", "guix"), "Hey, I am a package");
-	pk_backend_job_finished(job);
+	pk_backend_job_thread_create (job, call_with_guile, guix_resolve, NULL);
 }
 
 void
@@ -115,34 +103,7 @@ pk_backend_search_details (PkBackend *backend,
 			PkBitfield filters,
 			gchar **search)
 {
-	pk_backend_job_thread_create (job, guix_search, NULL, NULL);
-}
-
-void
-pk_backend_search_files (PkBackend *backend,
-			PkBackendJob *job,
-			PkBitfield filters,
-			gchar **search)
-{
-	pk_backend_job_thread_create (job, guix_search, NULL, NULL);
-}
-
-void
-pk_backend_search_groups (PkBackend *backend,
-			PkBackendJob *job,
-			PkBitfield filters,
-			gchar **search)
-{
-	pk_backend_job_thread_create (job, guix_search, NULL, NULL);
-}
-
-void
-pk_backend_search_names (PkBackend *backend,
-			PkBackendJob *job,
-			PkBitfield filters,
-			gchar **search)
-{
-	pk_backend_job_thread_create (job, guix_search, NULL, NULL);
+	pk_backend_job_thread_create (job, call_with_guile, guix_search, NULL);
 }
 
 void

@@ -2,7 +2,7 @@ guild = libguile_dep.get_pkgconfig_variable('guild')
 guile = libguile_dep.get_pkgconfig_variable('guile')
 
 guile_compiled_path = join_paths(get_option('prefix'), get_option('libdir'), 'guile', '3.0', 'site-ccache')
-guile_module_path = join_paths(get_option('prefix'), get_option('datadir'), 'guile', '3.0')
+guile_module_path = join_paths(get_option('prefix'), get_option('datadir'), 'guile', 'site', '3.0')
 
 guile_compile = [
   guild,

@@ -1,13 +1,11 @@
 (define-module (packagekit pk-guile-interface)
   #:use-module (gnu packages)
+  #:use-module (gnu packages base)
   #:use-module (guix packages)
   #:use-module (guix scripts show)
   #:use-module (guix utils)
   #:use-module (guix ui)
   #:use-module (ice-9 match))
-
-(define-public (pk-show-package name)
-  (guix-show name))
 
 ;; (define (find-packages-by-description regexps)
 ;;   "Return a list of pairs: packages whose name, synopsis, description,
@@ -84,3 +82,21 @@
   (make-package-result
    (sort-packages
     (search-packages regexps))))
+
+(define (get-package id)
+  (cond
+   ((string=? id "hello") hello)
+   (else
+    #f)))
+
+(define-public (pk-get-details package-ids)
+  (cond
+   ((null? package-ids) '())
+   (else
+    (let ((package (get-package (car package-ids))))
+      (if package
+	  (cons package (pk-get-details (cdr package-ids)))
+	  (pk-get-details (cdr package-ids)))))))
+
+(define-public (pk-resolve package-ids)
+  #nil)
