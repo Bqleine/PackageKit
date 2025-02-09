@@ -24,6 +24,7 @@
 #include "libguile/load.h"
 #include "libguile/strings.h"
 #include "pk-backend-job.h"
+#include "pk-backend.h"
 #include <stdio.h>
 #include <pwd.h>
 
@@ -32,6 +33,7 @@ static const char MODULE_NAME[] = "packagekit pk-guile-interface";
 static SCM scm_pk_search;
 static SCM scm_pk_get_details;
 static SCM scm_pk_resolve;
+static SCM scm_pk_install;
 
 static char *
 get_user_profiles (PkBackendJob* job)
@@ -41,6 +43,8 @@ get_user_profiles (PkBackendJob* job)
 	gchar *profiles;
 	gchar *ret;
 
+	setuid (uid);
+	setgid (uid_ent->pw_gid);
 	if (uid_ent == NULL)
 		g_error("Failed to get HOME");
 	profiles = g_strjoin("/", "/var/guix/profiles/per-user", uid_ent->pw_name, NULL);
@@ -61,10 +65,6 @@ setup_environment (const char *profiles)
 	go_path = g_strjoin(":", guix_go, go_path, NULL);
 	setenv("GUILE_LOAD_PATH", scm_path, 1);
 	setenv("GUILE_LOAD_COMPILED_PATH", go_path, 1);
-
-	printf ("GUILE LOAD PATH: %s\n", getenv("GUILE_LOAD_PATH"));
-	printf ("GUILE COMPILED LOAD PATH: %s\n", getenv("GUILE_LOAD_COMPILED_PATH"));
-
 	g_free(scm_path);
 	g_free(go_path);
 }
@@ -81,6 +81,7 @@ setup_guile (const char *profiles)
 	scm_pk_search = scm_c_public_lookup (MODULE_NAME, "pk-search");
 	scm_pk_get_details = scm_c_public_lookup (MODULE_NAME, "pk-get-details");
 	scm_pk_resolve = scm_c_public_lookup(MODULE_NAME, "pk-resolve");
+	scm_pk_install = scm_c_public_lookup(MODULE_NAME, "pk-install");
 }
 
 
@@ -96,11 +97,11 @@ call_with_guile (PkBackendJob* job, GVariant* params, void *p)
 
 
 static SCM
-args_to_scm_list (const gchar **args, SCM list)
+args_to_scm_list (const gchar **args)
 {
 	if (*args == NULL)
-		return list;
-	return scm_cons(scm_from_locale_string(*args), args_to_scm_list (args + 1, list));
+		return SCM_EOL;
+	return scm_cons(scm_from_locale_string(*args), args_to_scm_list (args + 1));
 }
 
 static void
@@ -136,7 +137,7 @@ guix_search (struct guix_job_data *data)
 	pk_backend_job_set_status(job, PK_STATUS_ENUM_QUERY);
 	if (search == NULL)
 		return;		/* TODO call job error ? */
-	regexs = args_to_scm_list (search, SCM_EOL);
+	regexs = args_to_scm_list (search);
 	result = scm_call_1(scm_variable_ref (scm_pk_search), regexs);
 	submit_package_list (job, result);
 	pk_backend_job_finished(job);
@@ -145,5 +146,39 @@ guix_search (struct guix_job_data *data)
 void
 guix_resolve (struct guix_job_data *data)
 {
+	SCM result;
+	SCM regexs;
+	const gchar **search;
+	PkBitfield filters;
+	PkBackendJob *job = data->job;
 
+	g_variant_get (data->params, "(t^a&s)", &filters, &search);
+	pk_backend_job_set_status(job, PK_STATUS_ENUM_SETUP);
+	setup_guile(data->profiles);
+	pk_backend_job_set_status(job, PK_STATUS_ENUM_QUERY);
+	if (search == NULL)
+		return;		/* TODO call job error ? */
+	regexs = args_to_scm_list (search);
+	result = scm_call_1(scm_variable_ref (scm_pk_resolve), regexs);
+	submit_package_list (job, result);
+	pk_backend_job_finished(job);
+}
+
+void
+guix_install (struct guix_job_data *data)
+{
+	PkBitfield filters;
+	const gchar **package_ids;
+	PkBackendJob *job = data->job;
+	SCM package_list;
+
+	g_variant_get (data->params, "(t^a&s)", &filters, &package_ids);
+	pk_backend_job_set_status(job, PK_STATUS_ENUM_SETUP);
+	setup_guile(data->profiles);
+	pk_backend_job_set_status(job, PK_STATUS_ENUM_INSTALL);
+	if (package_ids == NULL)
+		return;		/* TODO error */
+	package_list = args_to_scm_list (package_ids);
+	scm_call_1 (scm_variable_ref(scm_pk_install), package_list);
+	pk_backend_job_finished(job);
 }

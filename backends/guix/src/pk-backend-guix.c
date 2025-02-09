@@ -68,6 +68,16 @@ pk_backend_get_details (PkBackend *backend,
 	pk_backend_job_finished(job);
 }
 
+void
+pk_backend_install_packages (PkBackend	*backend,
+			PkBackendJob	*job,
+			PkBitfield	 transaction_flags,
+			gchar		**package_ids)
+{
+	pk_backend_job_thread_create (job, call_with_guile, guix_install, NULL);
+}
+
+
 void pk_backend_get_updates (PkBackend *backend,
 			PkBackendJob *job,
 			PkBitfield filters)

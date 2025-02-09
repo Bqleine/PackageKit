@@ -8,13 +8,16 @@ guile_compile = [
   guild,
   'compile',
   '-W3',
+  '-L', meson.current_source_dir() / '..',
   '-o',
   '@OUTPUT@',
   '@INPUT@',
 ]
 
 module_sources = [
-  'pk-guile-interface.scm'
+  'pk-guile-interface.scm',
+  'pk-profile.scm',
+  'pk-id.scm',
 ]
 
 install_data(module_sources, install_dir : guile_module_path / 'packagekit')

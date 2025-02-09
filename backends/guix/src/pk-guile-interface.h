@@ -35,4 +35,5 @@ void call_with_guile (PkBackendJob* job, GVariant* params, void *p);
 
 void guix_search (struct guix_job_data *data);
 void guix_resolve (struct guix_job_data *data);
+void guix_install (struct guix_job_data *data);
 #endif
