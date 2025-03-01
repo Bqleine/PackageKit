@@ -27,6 +27,7 @@
 #include "pk-backend.h"
 #include <stdio.h>
 #include <pwd.h>
+#include <sys/syscall.h>
 
 static const char MODULE_NAME[] = "packagekit pk-guile-interface";
 
@@ -34,6 +35,19 @@ static SCM scm_pk_search;
 static SCM scm_pk_get_details;
 static SCM scm_pk_resolve;
 static SCM scm_pk_install;
+
+/* Downgrade our permissions to avoid running arbitrary guile code as
+ * root (since we load the user’s guix).  FIXME: I wonder if this is
+ * enough.
+ *
+ * We are using syscalls since the libc function will change the ids
+ * for all threads. */
+static void
+set_thread_permissions (uid_t uid, gid_t gid)
+{
+	syscall(SYS_setresuid, uid, uid, uid);
+	syscall(SYS_setresgid, gid, gid, gid);
+}
 
 static char *
 get_user_profiles (PkBackendJob* job)
@@ -43,8 +57,7 @@ get_user_profiles (PkBackendJob* job)
 	gchar *profiles;
 	gchar *ret;
 
-	setuid (uid);
-	setgid (uid_ent->pw_gid);
+	set_thread_permissions(uid, uid_ent->pw_gid);
 	if (uid_ent == NULL)
 		g_error("Failed to get HOME");
 	profiles = g_strjoin("/", "/var/guix/profiles/per-user", uid_ent->pw_name, NULL);
