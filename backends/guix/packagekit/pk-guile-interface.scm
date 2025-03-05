@@ -22,8 +22,10 @@
   #:use-module (guix packages)
   #:use-module (guix scripts show)
   #:use-module (guix utils)
+  #:use-module ((guix licenses) #:select (license-name license?))
   #:use-module (guix ui)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 and-let-star)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (packagekit pk-profile)
@@ -88,16 +90,37 @@
                                     (package-name package2)))
                       (> score1 score2)))))))))
 
-(define (make-package-result packages)
-  (map (lambda (package)
-	 (cons
-	  (string-append (package-name package)
+(define (package-id package)
+  (string-append (package-name package)
 			 ";"
 			 (package-version package)
 			 ";"
-			 ";")
+			 ";"))
+
+(define (make-package-result packages)
+  (map (lambda (package)
+	 (cons
+	  (package-id package)
 	  (package-description package)))
        packages))
+
+(define (package->license-string package)
+  ;; TODO: use licenses->project-license from #76661
+  (let ((licenses (package-license package)))
+    (cond
+     ((list? licenses)
+      (license-name (car licenses)))
+     ((license? licenses)
+      (license-name licenses))
+     (else
+      "unknown license"))))
+
+(define (make-package-details-result package)
+  (list (package-id package)
+	(package-description package)
+	(package-synopsis package)
+	(package->license-string package)
+	(package-home-page package)))
 
 (define-public (pk-search regexps)
   (make-package-result
@@ -115,16 +138,20 @@
 	 (find-packages-by-name name version)))
      package-ids))))
 
+(define get-package
+  (compose packagekit-id->package string->packagekit-id))
+
 (define-public (pk-get-details package-ids)
   (cond
    ((null? package-ids) '())
    (else
     (let ((package (get-package (car package-ids))))
       (if package
-	  (cons package (pk-get-details (cdr package-ids)))
+	  (cons (make-package-details-result package)
+		(pk-get-details (cdr package-ids)))
 	  (pk-get-details (cdr package-ids)))))))
 
 (define-public (pk-install package-ids)
-  (let ((packages (map (compose packagekit-id->package string->packagekit-id)
+  (let ((packages (map get-package
 		       package-ids)))
     (install-packages packages)))

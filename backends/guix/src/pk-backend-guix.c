@@ -55,17 +55,7 @@ pk_backend_get_details (PkBackend *backend,
 			PkBackendJob *job,
 			gchar **package_ids)
 {
-	pk_backend_job_details (job,
-				package_ids[0],
-				"Hello, GNU world: Un exemple de paquet GNU",
-				"gpl3+",
-				PK_GROUP_ENUM_UNKNOWN,
-				"GNU Hello affiche le message \"Hello, world!\" puis se termine.  Il"
-"sert d'exemple pour les pratiques de programmation GNU standard.  Il supporte"
-"les arguments en ligne de commande, plusieurs langages, etc.",
-				"https://www.gnu.org/software/hello/",
-				0);
-	pk_backend_job_finished(job);
+	pk_backend_job_thread_create (job, call_with_guile, guix_details, NULL);
 }
 
 void

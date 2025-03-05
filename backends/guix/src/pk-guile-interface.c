@@ -109,6 +109,13 @@ call_with_guile (PkBackendJob* job, GVariant* params, void *p)
 }
 
 
+static SCM scm_pop (SCM *list)
+{
+	SCM head = SCM_CAR (*list);
+	*list = SCM_CDR (*list);
+	return head;
+}
+
 static SCM
 args_to_scm_list (const gchar **args)
 {
@@ -131,6 +138,28 @@ submit_package_list (PkBackendJob *job, SCM packages)
 	package_id = scm_to_locale_string (scm_car (package));
 	package_description = scm_to_locale_string (scm_cdr (package));
 	pk_backend_job_package (job, info, package_id, package_description);
+	submit_package_list (job, scm_cdr (packages));
+}
+
+static void
+submit_package_list_details (PkBackendJob *job, SCM packages)
+{
+	SCM package;
+	const gchar *package_id;
+	const gchar *package_description;
+	const gchar *package_synopsis;
+	const gchar *package_license;
+	const gchar *package_homepage;
+
+	if (scm_is_true (scm_null_p(packages)))
+		return;
+	package = scm_car (packages);
+	package_id = scm_to_locale_string (scm_pop (&package));
+	package_description = scm_to_locale_string (scm_pop (&package));
+	package_synopsis = scm_to_locale_string (scm_pop (&package));
+	package_license = scm_to_locale_string (scm_pop (&package));
+	package_homepage = scm_to_locale_string (scm_pop (&package));
+	pk_backend_job_details(job, package_id, package_synopsis, package_license, PK_GROUP_ENUM_UNKNOWN, package_description, package_homepage, 0);
 	submit_package_list (job, scm_cdr (packages));
 }
 
@@ -174,6 +203,26 @@ guix_resolve (struct guix_job_data *data)
 	regexs = args_to_scm_list (search);
 	result = scm_call_1(scm_variable_ref (scm_pk_resolve), regexs);
 	submit_package_list (job, result);
+	pk_backend_job_finished(job);
+}
+
+void
+guix_details (struct guix_job_data *data)
+{
+	SCM result;
+	SCM regexs;
+	const gchar **search;
+	PkBackendJob *job = data->job;
+
+	g_variant_get (data->params, "(^a&s)", &search);
+	pk_backend_job_set_status(job, PK_STATUS_ENUM_SETUP);
+	setup_guile(data->profiles);
+	pk_backend_job_set_status(job, PK_STATUS_ENUM_QUERY);
+	if (search == NULL)
+		return;		/* TODO call job error ? */
+	regexs = args_to_scm_list (search);
+	result = scm_call_1(scm_variable_ref (scm_pk_get_details), regexs);
+	submit_package_list_details (job, result);
 	pk_backend_job_finished(job);
 }
 
