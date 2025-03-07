@@ -20,6 +20,7 @@
  */
 
 #include "pk-guile-interface.h"
+#include "libguile/foreign.h"
 #include "libguile/list.h"
 #include "libguile/load.h"
 #include "libguile/strings.h"
@@ -71,15 +72,11 @@ setup_environment (const char *profiles)
 {
 	g_autofree gchar *guix_scm = g_strconcat(profiles, "/current-guix/share/guile/site/3.0", NULL);
 	g_autofree gchar *guix_go = g_strconcat(profiles, "/current-guix/lib/guile/3.0/site-ccache", NULL);
-	char *scm_path = getenv("GUILE_LOAD_PATH");
-	char *go_path = getenv("GUILE_LOAD_COMPILED_PATH");
+	g_autofree char *scm_path = g_strjoin(":", guix_scm, GUILE_LOAD_PATH, NULL);
+	g_autofree char *go_path = g_strjoin(":", guix_go, GUILE_LOAD_COMPILED_PATH, NULL);
 
-	scm_path = g_strjoin(":", guix_scm, scm_path, NULL);
-	go_path = g_strjoin(":", guix_go, go_path, NULL);
 	setenv("GUILE_LOAD_PATH", scm_path, 1);
 	setenv("GUILE_LOAD_COMPILED_PATH", go_path, 1);
-	g_free(scm_path);
-	g_free(go_path);
 }
 
 // TODO : error handling?

@@ -20,3 +20,5 @@ option('dbus_services', type : 'string', value : '', description : 'D-BUS system
 option('python_backend', type : 'boolean', value : true, description : 'Provide a python backend')
 option('pythonpackagedir', type : 'string', value : '', description : 'Location for python modules')
 option('daemon_tests', type : 'boolean', value : true, description : 'Test the daemon using the dummy backend')
+option('guix_guile_load_path', type : 'string', value : '/usr/share/guile/3.0/', description : 'GUILE_LOAD_PATH for the Guix backend')
+option('guix_guile_load_compiled_path', type : 'string', value : '/usr/lib/guile/3.0/ccache/', description : 'GUILE_COMPILED_LOAD_PATH for the Guix backend')

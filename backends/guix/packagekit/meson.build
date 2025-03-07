@@ -1,8 +1,8 @@
 guild = libguile_dep.get_pkgconfig_variable('guild')
 guile = libguile_dep.get_pkgconfig_variable('guile')
 
-guile_compiled_path = join_paths(get_option('prefix'), get_option('libdir'), 'guile', '3.0', 'site-ccache')
-guile_module_path = join_paths(get_option('prefix'), get_option('datadir'), 'guile', 'site', '3.0')
+guile_output = join_paths(get_option('prefix'), get_option('datadir'), 'guile', 'site', '3.0')
+guile_compiled_output = join_paths(get_option('prefix'), get_option('libdir'), 'guile', '3.0', 'site-ccache')
 
 guile_compile = [
   guild,
@@ -20,7 +20,7 @@ module_sources = [
   'pk-id.scm',
 ]
 
-install_data(module_sources, install_dir : guile_module_path / 'packagekit')
+install_data(module_sources, install_dir : guile_output / 'packagekit')
 
 foreach src : module_sources
   obj = src.split('.')[0] + '.go'
@@ -29,7 +29,7 @@ foreach src : module_sources
     command: guile_compile,
     input: src,
     install: true,
-    install_dir: join_paths(guile_compiled_path, 'packagekit'),
+    install_dir: join_paths(guile_compiled_output, 'packagekit'),
     output: obj
   )
 endforeach
