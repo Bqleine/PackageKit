@@ -18,30 +18,61 @@
 
 (define-module (packagekit pk-profile)
   #:use-module ((guix ui) #:select (with-profile-lock))
+  #:use-module ((packagekit pk-id) #:select (packagekit-id->guix-id))
   #:use-module (guix profiles)
   #:use-module ((guix store) #:select (open-connection))
   #:use-module ((guix describe) #:select (manifest-entry-with-provenance))
-  #:use-module ((guix scripts package) #:select (build-and-use-profile)))
+  #:use-module ((guix scripts package) #:select (build-and-use-profile
+						 guix-package*
+						 %package-default-options)))
 
-(define (package->manifest-entry* package output)
-  "Like 'package->manifest-entry', but attach PACKAGE provenance meta-data to
+;; Manual way, installing with a list of package records.  Currently
+;; disabled for the other way below.
+
+'(
+ (define (package->manifest-entry* package output)
+   "Like 'package->manifest-entry', but attach PACKAGE provenance meta-data to
 the resulting manifest entry."
-  (manifest-entry-with-provenance
-   (package->manifest-entry package output)))
+   (manifest-entry-with-provenance
+    (package->manifest-entry package output)))
 
-(define (packages->manifest-entries packages)
-  (map (lambda (package)
-	 (package->manifest-entry* package "out"))
-       packages))
+ (define (packages->manifest-entries packages)
+   (map (lambda (package)
+	  (package->manifest-entry* package "out"))
+	packages))
 
-(define-public (install-packages packages)
-  (let* ((profile %current-profile)
-	 (manifest (profile-manifest profile))
-	 (store (open-connection))
-	 (entries (packages->manifest-entries packages))
-	 (new-manifest (manifest-add manifest entries)))
-    (display "INSTALLING TO PROFILE ")
-    (display profile)
-    (newline)
-    (with-profile-lock profile
-      (build-and-use-profile store profile new-manifest))))
+ (define-public (install-packages packages)
+   (let* ((profile %current-profile)
+	  (manifest (profile-manifest profile))
+	  (store (open-connection))
+	  (entries (packages->manifest-entries packages))
+	  (new-manifest (manifest-add manifest entries)))
+     (display "INSTALLING TO PROFILE ")
+     (display profile)
+     (newline)
+     (with-profile-lock profile
+       (build-and-use-profile store profile new-manifest))))
+ )
+
+;; CLI way, calling guix-package* from the guix package command.  This
+;; is not ideal but its the most stable way as long as cli and profile
+;; actions are intertwined on the Guix side.
+
+(define (guix-package-action pk-ids action)
+  "Takes a list of <packagekit-id> and executes ACTION, a symbol
+describing a guix package action, on them in the current profile."
+  (let* ((actions
+	  (map (lambda (pk-id)
+		 (cons action (packagekit-id->guix-id pk-id)))
+	       pk-ids)))
+    (guix-package* `(,@actions
+		     ,@%package-default-options))))
+
+(define-public (profile-install pk-ids)
+  (guix-package-action pk-ids 'install))
+
+(define-public (profile-remove pk-ids)
+  (guix-package-action pk-ids 'remove))
+
+(define-public (profile-upgrade pk-ids)
+  (guix-package-action pk-ids 'upgrade))

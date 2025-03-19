@@ -104,24 +104,6 @@
 	  (package-description package)))
        packages))
 
-(define (package->license-string package)
-  ;; TODO: use licenses->project-license from #76661
-  (let ((licenses (package-license package)))
-    (cond
-     ((list? licenses)
-      (license-name (car licenses)))
-     ((license? licenses)
-      (license-name licenses))
-     (else
-      "unknown license"))))
-
-(define (make-package-details-result package)
-  (list (package-id package)
-	(package-description package)
-	(package-synopsis package)
-	(package->license-string package)
-	(package-home-page package)))
-
 (define-public (pk-search regexps)
   (make-package-result
    (map first
@@ -138,10 +120,28 @@
 	 (find-packages-by-name name version)))
      package-ids))))
 
-(define get-package
-  (compose packagekit-id->package string->packagekit-id))
-
 (define-public (pk-get-details package-ids)
+  (define get-package
+    (compose packagekit-id->package string->packagekit-id))
+
+  (define (package->license-string package)
+    ;; TODO: use licenses->project-license from #76661
+    (let ((licenses (package-license package)))
+      (cond
+       ((list? licenses)
+	(license-name (car licenses)))
+       ((license? licenses)
+	(license-name licenses))
+       (else
+	"unknown license"))))
+
+  (define (make-package-details-result package)
+    (list (package-id package)
+	  (package-description package)
+	  (package-synopsis package)
+	  (package->license-string package)
+	  (package-home-page package)))
+
   (cond
    ((null? package-ids) '())
    (else
@@ -152,6 +152,10 @@
 	  (pk-get-details (cdr package-ids)))))))
 
 (define-public (pk-install package-ids)
-  (let ((packages (map get-package
-		       package-ids)))
-    (install-packages packages)))
+  (profile-install (map string->packagekit-id package-ids)))
+
+(define-public (pk-remove package-ids)
+  (profile-remove (map string->packagekit-id package-ids)))
+
+(define-public (pk-upgrade package-ids)
+  (profile-upgrade (map string->packagekit-id package-ids)))

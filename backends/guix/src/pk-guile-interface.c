@@ -36,42 +36,39 @@ static SCM scm_pk_search;
 static SCM scm_pk_get_details;
 static SCM scm_pk_resolve;
 static SCM scm_pk_install;
+static SCM scm_pk_remove;
+static SCM scm_pk_upgrade;
 
 /* Downgrade our permissions to avoid running arbitrary guile code as
- * root (since we load the user’s guix).  FIXME: I wonder if this is
- * enough.
+ * root (since we load the user’s guix).
  *
  * We are using syscalls since the libc function will change the ids
  * for all threads. */
 static void
 set_thread_permissions (uid_t uid, gid_t gid)
 {
-	syscall(SYS_setresuid, uid, uid, uid);
+	//TODO: drop ambient capabilities
+	syscall(SYS_setresuid, uid, uid, uid); /* TODO: abort in case of errors in these */
 	syscall(SYS_setresgid, gid, gid, gid);
 }
 
 static char *
-get_user_profiles (PkBackendJob* job)
+get_user_profiles_path (const char *user_name)
 {
-	guint uid = pk_backend_job_get_uid (job);
-	struct passwd* uid_ent = getpwuid (uid);
 	gchar *profiles;
 	gchar *ret;
 
-	set_thread_permissions(uid, uid_ent->pw_gid);
-	if (uid_ent == NULL)
-		g_error("Failed to get HOME");
-	profiles = g_strjoin("/", "/var/guix/profiles/per-user", uid_ent->pw_name, NULL);
+	profiles = g_strjoin("/", "/var/guix/profiles/per-user", user_name, NULL);
 	ret = realpath(profiles, NULL);
 	g_free(profiles);
 	return ret;
 }
 
 static void
-setup_environment (const char *profiles)
+setup_environment (const char *profiles_path)
 {
-	g_autofree gchar *guix_scm = g_strconcat(profiles, "/current-guix/share/guile/site/3.0", NULL);
-	g_autofree gchar *guix_go = g_strconcat(profiles, "/current-guix/lib/guile/3.0/site-ccache", NULL);
+	g_autofree gchar *guix_scm = g_strconcat(profiles_path, "/current-guix/share/guile/site/3.0", NULL);
+	g_autofree gchar *guix_go = g_strconcat(profiles_path, "/current-guix/lib/guile/3.0/site-ccache", NULL);
 	g_autofree char *scm_path = g_strjoin(":", guix_scm, GUILE_LOAD_PATH, NULL);
 	g_autofree char *go_path = g_strjoin(":", guix_go, GUILE_LOAD_COMPILED_PATH, NULL);
 
@@ -81,28 +78,38 @@ setup_environment (const char *profiles)
 
 // TODO : error handling?
 static void
-setup_guile (const char *profiles)
+setup_guile (const char *profiles_path)
 {
-	g_autofree gchar *progname = g_strconcat(profiles, "/current-guix/bin/guix", NULL);
+	g_autofree gchar *progname = g_strconcat(profiles_path, "/current-guix/bin/guix", NULL);
 	char *argv[] = { progname };
 
 	scm_set_program_arguments (1, argv, NULL);
 	scm_primitive_load_path (scm_from_locale_string ("packagekit/pk-guile-interface"));
 	scm_pk_search = scm_c_public_lookup (MODULE_NAME, "pk-search");
 	scm_pk_get_details = scm_c_public_lookup (MODULE_NAME, "pk-get-details");
-	scm_pk_resolve = scm_c_public_lookup(MODULE_NAME, "pk-resolve");
-	scm_pk_install = scm_c_public_lookup(MODULE_NAME, "pk-install");
+	scm_pk_resolve = scm_c_public_lookup (MODULE_NAME, "pk-resolve");
+	scm_pk_install = scm_c_public_lookup (MODULE_NAME, "pk-install");
+	scm_pk_remove = scm_c_public_lookup (MODULE_NAME, "pk-remove");
+	scm_pk_upgrade = scm_c_public_lookup (MODULE_NAME, "pk-upgrade");
 }
 
-
+/* Calls P inside a guile environment with the user’s guix and running
+ * as the user. */
 void
-call_with_guile (PkBackendJob* job, GVariant* params, void *p)
+call_with_guile (PkBackendJob* job, GVariant* params, void (*p)(const struct guix_job_data *))
 {
-	g_autofree char *profiles = get_user_profiles(job);
-	struct guix_job_data data = { job, params, profiles };
+	guint uid = pk_backend_job_get_uid (job);
+	struct passwd* user = getpwuid (uid);
+	g_autofree char *profiles_path = get_user_profiles_path(user->pw_name);
+	struct guix_job_data data = { job, params, profiles_path };
 
-	setup_environment(data.profiles);
-	scm_with_guile (p, &data); /* TODO: check if this works with multiple users doing requests */
+	pk_backend_job_set_status(job, PK_STATUS_ENUM_RUNNING);
+	set_thread_permissions (uid, user->pw_gid);
+	setup_environment (profiles_path);
+	scm_init_guile ();
+	setup_guile (profiles_path);
+	p(&data); /* TODO: check if this works with multiple users doing requests */
+	pk_backend_job_finished(job);
 }
 
 
@@ -160,84 +167,108 @@ submit_package_list_details (PkBackendJob *job, SCM packages)
 	submit_package_list (job, scm_cdr (packages));
 }
 
+// Procedures to be used with call_with_guile.
 
-void
-guix_search (struct guix_job_data *data)
+/* Gets the search and filters from a job’s parameters and turns them
+ * into a scheme list written to PACKAGES that can be given to the
+ * guile interface */
+static gboolean
+search_and_filters_to_scm (const struct guix_job_data *data, SCM *packages)
 {
-	SCM result;
-	SCM regexs;
 	const gchar **search;
 	PkBitfield filters;
 	PkBackendJob *job = data->job;
 
 	g_variant_get (data->params, "(t^a&s)", &filters, &search);
-	pk_backend_job_set_status(job, PK_STATUS_ENUM_SETUP);
-	setup_guile(data->profiles);
-	pk_backend_job_set_status(job, PK_STATUS_ENUM_QUERY);
-	if (search == NULL)
-		return;		/* TODO call job error ? */
-	regexs = args_to_scm_list (search);
-	result = scm_call_1(scm_variable_ref (scm_pk_search), regexs);
-	submit_package_list (job, result);
-	pk_backend_job_finished(job);
+	if (search == NULL) {
+		pk_backend_job_error_code (job, PK_ERROR_ENUM_PACKAGE_ID_INVALID, "No search provided");
+		return FALSE;
+	}
+	*packages = args_to_scm_list (search);
+	return TRUE;
 }
 
-void
-guix_resolve (struct guix_job_data *data)
+/* Gets the search from a job’s parameters and turns them into a
+ * scheme list written to PACKAGES that can be given to the guile
+ * interface */
+static gboolean
+search_to_scm (const struct guix_job_data *data, SCM *packages)
 {
-	SCM result;
-	SCM regexs;
-	const gchar **search;
-	PkBitfield filters;
-	PkBackendJob *job = data->job;
-
-	g_variant_get (data->params, "(t^a&s)", &filters, &search);
-	pk_backend_job_set_status(job, PK_STATUS_ENUM_SETUP);
-	setup_guile(data->profiles);
-	pk_backend_job_set_status(job, PK_STATUS_ENUM_QUERY);
-	if (search == NULL)
-		return;		/* TODO call job error ? */
-	regexs = args_to_scm_list (search);
-	result = scm_call_1(scm_variable_ref (scm_pk_resolve), regexs);
-	submit_package_list (job, result);
-	pk_backend_job_finished(job);
-}
-
-void
-guix_details (struct guix_job_data *data)
-{
-	SCM result;
-	SCM regexs;
 	const gchar **search;
 	PkBackendJob *job = data->job;
 
 	g_variant_get (data->params, "(^a&s)", &search);
-	pk_backend_job_set_status(job, PK_STATUS_ENUM_SETUP);
-	setup_guile(data->profiles);
-	pk_backend_job_set_status(job, PK_STATUS_ENUM_QUERY);
-	if (search == NULL)
-		return;		/* TODO call job error ? */
-	regexs = args_to_scm_list (search);
-	result = scm_call_1(scm_variable_ref (scm_pk_get_details), regexs);
-	submit_package_list_details (job, result);
-	pk_backend_job_finished(job);
+	if (search == NULL) {
+		pk_backend_job_error_code (job, PK_ERROR_ENUM_PACKAGE_ID_INVALID, "No search provided");
+		return FALSE;
+	}
+	*packages = args_to_scm_list (search);
+	return TRUE;
 }
 
 void
-guix_install (struct guix_job_data *data)
+guix_search (const struct guix_job_data *data)
 {
-	PkBitfield filters;
-	const gchar **package_ids;
-	PkBackendJob *job = data->job;
-	SCM package_list;
+	SCM result;
+	SCM search;
 
-	g_variant_get (data->params, "(t^a&s)", &filters, &package_ids);
-	pk_backend_job_set_status(job, PK_STATUS_ENUM_SETUP);
-	setup_guile(data->profiles);
-	pk_backend_job_set_status(job, PK_STATUS_ENUM_INSTALL);
-	if (package_ids == NULL)
-		return;		/* TODO error */
-	package_list = args_to_scm_list (package_ids);
-	scm_call_1 (scm_variable_ref(scm_pk_install), package_list);
-	pk_backend_job_finished(job);
+	if (!search_and_filters_to_scm (data, &search))
+		return;
+	pk_backend_job_set_status(data->job, PK_STATUS_ENUM_QUERY);
+	result = scm_call_1(scm_variable_ref (scm_pk_search), search);
+	submit_package_list (data->job, result);
+}
+
+void
+guix_resolve (const struct guix_job_data *data)
+{
+	SCM result;
+	SCM search;
+
+	if (!search_and_filters_to_scm (data, &search))
+		return;
+	pk_backend_job_set_status(data->job, PK_STATUS_ENUM_QUERY);
+	result = scm_call_1(scm_variable_ref (scm_pk_resolve), search);
+	submit_package_list (data->job, result);
+}
+
+void
+guix_details (const struct guix_job_data *data)
+{
+	SCM result;
+	SCM search;
+
+	if (!search_to_scm (data, &search))
+		return;
+	result = scm_call_1(scm_variable_ref (scm_pk_get_details), search);
+	submit_package_list_details (data->job, result);
+}
+
+static void
+guix_package (const struct guix_job_data *data, SCM action)
+{
+	SCM packages;
+
+	if (!search_and_filters_to_scm (data, &packages))
+		return;
+	scm_call_1 (scm_variable_ref(action), packages);
+	pk_backend_job_finished(data->job);
+}
+
+void
+guix_install (const struct guix_job_data *data)
+{
+	return guix_package (data, scm_pk_install);
+}
+
+void
+guix_remove (const struct guix_job_data *data)
+{
+	return guix_package (data, scm_pk_remove);
+}
+
+void
+guix_upgrade (const struct guix_job_data *data)
+{
+	return guix_package (data, scm_pk_upgrade);
 }

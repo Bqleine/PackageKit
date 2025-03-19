@@ -30,7 +30,6 @@
   (data packagekit-id-data))
 
 (define-public (string->packagekit-id id)
-  "Finds a package from its PackageKit id. For example openttd;14.1;;"
   (unless (eq? (string-count id #\;) 3)
     (error "packagekit id should always contain four elements"))
   (define components (string-split id #\;))
@@ -53,4 +52,9 @@
 	 (packages (find-packages-by-name name version)))
     (if (null? packages) '() (car packages))))
 
-((compose packagekit-id->package string->packagekit-id) "openttd;;;")
+(define-public (packagekit-id->guix-id pk-id)
+  (let ((name (packagekit-id-name pk-id))
+	(version (packagekit-id-version pk-id)))
+    (if (string-null? version)
+	name
+	(string-append name "@" version))))

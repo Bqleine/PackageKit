@@ -55,18 +55,8 @@ pk_backend_get_details (PkBackend *backend,
 			PkBackendJob *job,
 			gchar **package_ids)
 {
-	pk_backend_job_thread_create (job, call_with_guile, guix_details, NULL);
+	pk_backend_job_thread_create (job, (PkBackendJobThreadFunc) call_with_guile, guix_details, NULL);
 }
-
-void
-pk_backend_install_packages (PkBackend	*backend,
-			PkBackendJob	*job,
-			PkBitfield	 transaction_flags,
-			gchar		**package_ids)
-{
-	pk_backend_job_thread_create (job, call_with_guile, guix_install, NULL);
-}
-
 
 void pk_backend_get_updates (PkBackend *backend,
 			PkBackendJob *job,
@@ -74,6 +64,16 @@ void pk_backend_get_updates (PkBackend *backend,
 {
 	pk_backend_job_package (job, PK_INFO_ENUM_NORMAL, pk_package_id_build("hello", "3.5", "x86_64", "guix"), "Hey, I am a package");
 	pk_backend_job_finished(job);
+}
+
+
+void
+pk_backend_install_packages (PkBackend	*backend,
+			PkBackendJob	*job,
+			PkBitfield	 transaction_flags,
+			gchar		**package_ids)
+{
+	pk_backend_job_thread_create (job, (PkBackendJobThreadFunc) call_with_guile, guix_install, NULL);
 }
 
 void
@@ -89,12 +89,23 @@ pk_backend_refresh_cache (PkBackend *backend,
 	pk_backend_job_finished(job);
 }
 
+void
+pk_backend_remove_packages (PkBackend *backend,
+			PkBackendJob *job,
+			PkBitfield transaction_flags,
+			gchar **package_ids,
+			gboolean allow_deps,
+			gboolean autoremove)
+{
+	pk_backend_job_thread_create (job, (PkBackendJobThreadFunc) call_with_guile, guix_remove, NULL);
+}
+
 void pk_backend_resolve (PkBackend *backend,
 			PkBackendJob *job,
 			PkBitfield filters,
 			gchar **packages)
 {
-	pk_backend_job_thread_create (job, call_with_guile, guix_resolve, NULL);
+	pk_backend_job_thread_create (job, (PkBackendJobThreadFunc) call_with_guile, guix_resolve, NULL);
 }
 
 void
@@ -103,15 +114,14 @@ pk_backend_search_details (PkBackend *backend,
 			PkBitfield filters,
 			gchar **search)
 {
-	pk_backend_job_thread_create (job, call_with_guile, guix_search, NULL);
+	pk_backend_job_thread_create (job, (PkBackendJobThreadFunc) call_with_guile, guix_search, NULL);
 }
 
 void
-pk_backend_get_packages (PkBackend* backend,
-			PkBackendJob* job,
-			PkBitfield filters)
+pk_backend_update_packages (PkBackend	*backend,
+			PkBackendJob	*job,
+			PkBitfield	 transaction_flags,
+			gchar		**package_ids)
 {
-	pk_backend_job_package (job, PK_INFO_ENUM_AVAILABLE, pk_package_id_build("hello", "3.5", "x86_64", "guix"), "Hey, I am a package");
-	pk_backend_job_package (job, PK_INFO_ENUM_AVAILABLE, pk_package_id_build("openttd", "14.1", "x86_64", "guix"), "Hey, I am a package");
-	pk_backend_job_finished(job);
+	pk_backend_job_thread_create (job, (PkBackendJobThreadFunc) call_with_guile, guix_upgrade, NULL);
 }

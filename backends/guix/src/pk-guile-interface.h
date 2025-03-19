@@ -28,13 +28,17 @@
 struct guix_job_data {
 	PkBackendJob *job;
 	GVariant *params;
-	const char *profiles;
+	const char *profiles_path;
 };
 
-void call_with_guile (PkBackendJob* job, GVariant* params, void *p);
+void call_with_guile (PkBackendJob* job,
+		GVariant* params,
+		void (*p)(const struct guix_job_data *));
 
-void guix_search (struct guix_job_data *data);
-void guix_resolve (struct guix_job_data *data);
-void guix_install (struct guix_job_data *data);
-void guix_details (struct guix_job_data *data);
+void guix_search (const struct guix_job_data *data);
+void guix_resolve (const struct guix_job_data *data);
+void guix_details (const struct guix_job_data *data);
+void guix_install (const struct guix_job_data *data);
+void guix_remove (const struct guix_job_data *data);
+void guix_upgrade (const struct guix_job_data *data);
 #endif
