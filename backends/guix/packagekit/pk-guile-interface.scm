@@ -17,92 +17,40 @@
 ;; <https://www.gnu.org/licenses/>.
 
 (define-module (packagekit pk-guile-interface)
-  #:use-module (gnu packages)
-  #:use-module (gnu packages base)
-  #:use-module (guix packages)
-  #:use-module (guix scripts show)
-  #:use-module (guix utils)
+  #:use-module ((gnu packages) #:select (find-packages-by-name))
   #:use-module ((guix licenses) #:select (license-name license?))
-  #:use-module (guix ui)
-  #:use-module (ice-9 match)
-  #:use-module (ice-9 and-let-star)
-  #:use-module (srfi srfi-1)
-  #:use-module (srfi srfi-11)
+  #:use-module ((guix utils) #:select (package-name->name+version))
+  #:use-module (guix packages)
+  #:use-module (packagekit pk-id)
   #:use-module (packagekit pk-profile)
-  #:use-module (packagekit pk-id))
-
-;; (define (find-packages-by-description regexps)
-;;   "Return a list of pairs: packages whose name, synopsis, description,
-;; or output matches at least one of REGEXPS sorted by relevance, and its
-;; non-zero relevance score."
-;;   (let ((matches (fold-packages (lambda (package result)
-;;                                   (if (package-superseded package)
-;;                                       result
-;;                                       (match (package-relevance package
-;;                                                                 regexps)
-;;                                         ((? zero?)
-;;                                          result)
-;;                                         (score
-;;                                          (cons (cons package score)
-;;                                                result)))))
-;;                                 '())))
-;;     (sort matches
-;;           (lambda (m1 m2)
-;;             (match m1
-;;               ((package1 . score1)
-;;                (match m2
-;;                  ((package2 . score2)
-;;                   (if (= score1 score2)
-;;                       (if (string=? (package-name package1)
-;;                                     (package-name package2))
-;;                           (version>? (package-version package1)
-;;                                      (package-version package2))
-;;                           (string>? (package-name package1)
-;;                                     (package-name package2)))
-;;                       (> score1 score2))))))))))
-
-(define (search-packages regexps)
-  (fold-packages (lambda (package result)
-                   (if (package-superseded package)
-                       result
-                       (match (package-relevance package
-                                                 regexps)
-                         ((? zero?)
-                          result)
-                         (score
-                          (cons (cons package score)
-                                result)))))
-                 '()))
-
-(define (sort-packages packages)
-    (sort packages
-          (lambda (m1 m2)
-            (match m1
-              ((package1 . score1)
-               (match m2
-                 ((package2 . score2)
-                  (if (= score1 score2)
-                      (if (string=? (package-name package1)
-                                    (package-name package2))
-                          (version>? (package-version package1)
-                                     (package-version package2))
-                          (string>? (package-name package1)
-                                    (package-name package2)))
-                      (> score1 score2)))))))))
-
-(define (package-id package)
-  (string-append (package-name package)
-			 ";"
-			 (package-version package)
-			 ";"
-			 ";"))
+  #:use-module (packagekit pk-query)
+  #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-11))
 
 (define (make-package-result packages)
   (map (lambda (package)
 	 (cons
-	  (package-id package)
+	  (packagekit-id->string (package->packagekit-id package))
 	  (package-description package)))
        packages))
+
+(define (package-license-string package)
+  ;; TODO: use licenses->project-license from #76661
+  (let ((licenses (package-license package)))
+    (cond
+     ((list? licenses)
+      (license-name (car licenses)))
+     ((license? licenses)
+      (license-name licenses))
+     (else
+      "unknown license"))))
+
+(define (make-package-details-result package)
+  (list (packagekit-id->string (package->packagekit-id package))
+	(package-description package)
+	(package-synopsis package)
+	(package-license-string package)
+	(package-home-page package)))
 
 (define-public (pk-search regexps)
   (make-package-result
@@ -123,24 +71,6 @@
 (define-public (pk-get-details package-ids)
   (define get-package
     (compose packagekit-id->package string->packagekit-id))
-
-  (define (package->license-string package)
-    ;; TODO: use licenses->project-license from #76661
-    (let ((licenses (package-license package)))
-      (cond
-       ((list? licenses)
-	(license-name (car licenses)))
-       ((license? licenses)
-	(license-name licenses))
-       (else
-	"unknown license"))))
-
-  (define (make-package-details-result package)
-    (list (package-id package)
-	  (package-description package)
-	  (package-synopsis package)
-	  (package->license-string package)
-	  (package-home-page package)))
 
   (cond
    ((null? package-ids) '())

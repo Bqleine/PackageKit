@@ -17,14 +17,8 @@
 ;; <https://www.gnu.org/licenses/>.
 
 (define-module (packagekit pk-profile)
-  #:use-module ((guix ui) #:select (with-profile-lock))
-  #:use-module ((packagekit pk-id) #:select (packagekit-id->guix-id))
-  #:use-module (guix profiles)
-  #:use-module ((guix store) #:select (open-connection))
-  #:use-module ((guix describe) #:select (manifest-entry-with-provenance))
-  #:use-module ((guix scripts package) #:select (build-and-use-profile
-						 guix-package*
-						 %package-default-options)))
+  #:use-module ((guix scripts package) #:select (guix-package* %package-default-options))
+  #:use-module ((packagekit pk-id) #:select (packagekit-id->guix-id)))
 
 ;; Manual way, installing with a list of package records.  Currently
 ;; disabled for the other way below.

@@ -17,9 +17,10 @@
 ;; <https://www.gnu.org/licenses/>.
 
 (define-module (packagekit pk-id)
-  #:use-module (srfi srfi-9)
+  #:use-module ((gnu packages) #:select (find-packages-by-name))
+  #:use-module (guix packages)
   #:use-module (ice-9 match)
-  #:use-module ((gnu packages) #:select (find-packages-by-name)))
+  #:use-module (srfi srfi-9))
 
 (define-record-type <packagekit-id>
   (make-packagekit-id name version arch data)
@@ -58,3 +59,10 @@
     (if (string-null? version)
 	name
 	(string-append name "@" version))))
+
+(define-public (package->packagekit-id package)
+  (make-packagekit-id
+   (package-name package)
+   (package-version package)
+   ""
+   ""))
