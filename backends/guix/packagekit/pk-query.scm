@@ -34,9 +34,10 @@
 	((or (package-superseded package)
 	     (zero? relevance))
 	 result)
-        (cons (cons (package->packagekit-id package)
-		    relevance)
-              result))))
+	(else
+         (cons (cons (package->packagekit-id package)
+		     relevance)
+               result)))))
    '()))
 
 (define-public (sort-packages packages)
