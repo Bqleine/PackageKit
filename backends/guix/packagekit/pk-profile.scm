@@ -18,7 +18,8 @@
 
 (define-module (packagekit pk-profile)
   #:use-module ((guix scripts package) #:select (guix-package* %package-default-options))
-  #:use-module ((packagekit pk-id) #:select (packagekit-id->guix-id)))
+  #:use-module ((packagekit pk-id) #:select (packagekit-id->guix-id))
+  #:use-module (guix profiles))
 
 ;; Manual way, installing with a list of package records.  Currently
 ;; disabled for the other way below.
@@ -70,3 +71,15 @@ describing a guix package action, on them in the current profile."
 
 (define-public (profile-upgrade pk-ids)
   (guix-package-action pk-ids 'upgrade))
+
+;; FIXME: Consider also discriminating by module name (provenance).
+(define-public (installed-packages)
+  "Lists all packages installed in the current profile by name and
+version."
+  (let* ((manifest (profile-manifest %current-profile))
+	 (installed (manifest-entries manifest)))
+    (map
+     (lambda (entry)
+       (cons (manifest-entry-name entry)
+	     (manifest-entry-version entry)))
+     installed)))

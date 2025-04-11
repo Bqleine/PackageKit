@@ -22,11 +22,19 @@
   #:use-module ((gnu packages) #:select (fold-packages))
   #:use-module ((guix ui) #:select (package-relevance))
   #:use-module ((guix utils) #:select (version>?))
+  #:use-module ((packagekit pk-profile) #:select (installed-packages))
   #:use-module (guix packages)
   #:use-module (ice-9 match)
   #:use-module (packagekit pk-id))
 
+(define (package-installed? package installed)
+  (let ((search (cons (package-name package)
+		      (package-version package))))
+    (not (not (member search installed)))))
+
+;; TODO: use package cache.
 (define-public (search-packages regexps)
+  (define installed (installed-packages))
   (fold-packages
    (lambda (package result)
      (let ((relevance (package-relevance package regexps)))
@@ -35,7 +43,10 @@
 	     (zero? relevance))
 	 result)
 	(else
-         (cons (cons (package->packagekit-id package)
+         (cons (cons (package->packagekit-id
+		      package
+		      #:installed?
+		      (package-installed? package installed))
 		     relevance)
                result)))))
    '()))

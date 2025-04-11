@@ -18,6 +18,7 @@
 
 (define-module (packagekit pk-id)
   #:use-module ((gnu packages) #:select (find-packages-by-name))
+  #:use-module ((ice-9 optargs) #:select (define*-public))
   #:use-module (guix packages)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-9))
@@ -60,9 +61,9 @@
 	name
 	(string-append name "@" version))))
 
-(define-public (package->packagekit-id package)
+(define*-public (package->packagekit-id package #:key (installed? #f))
   (make-packagekit-id
    (package-name package)
    (package-version package)
    ""
-   ""))
+   (if installed? "installed" "")))
