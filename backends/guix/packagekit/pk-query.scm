@@ -19,20 +19,19 @@
 ;; <https://www.gnu.org/licenses/>.
 
 (define-module (packagekit pk-query)
-  #:use-module ((gnu packages) #:select (fold-packages))
+  #:use-module ((gnu packages) #:select (fold-packages fold-available-packages))
   #:use-module ((guix ui) #:select (package-relevance))
   #:use-module ((guix utils) #:select (version>?))
+  #:use-module ((ice-9 regex) #:select (fold-matches match:substring))
   #:use-module ((packagekit pk-profile) #:select (installed-packages))
   #:use-module (guix packages)
   #:use-module (ice-9 match)
   #:use-module (packagekit pk-id))
 
-(define (package-installed? package installed)
-  (let ((search (cons (package-name package)
-		      (package-version package))))
-    (not (not (member search installed)))))
+(define (package-installed? name version installed)
+  (let ((search (cons name version)))
+    (->bool (member search installed))))
 
-;; TODO: use package cache.
 (define-public (search-packages regexps)
   (define installed (installed-packages))
   (fold-packages
@@ -46,7 +45,49 @@
          (cons (cons (package->packagekit-id
 		      package
 		      #:installed?
-		      (package-installed? package installed))
+		      (package-installed? (package-name package)
+					  (package-version package)
+					  installed))
+		     relevance)
+               result)))))
+   '()))
+
+(define-public (search-packages-fast regexps)
+  "Like search-packages but uses the package cache.  It is limited to
+ only searching by name."
+  (define installed (installed-packages))
+  (define (name-score regexp name)
+    (fold-matches regexp name 0
+                  (lambda (m score)
+                    (+ score
+                       (if (string=? (match:substring m) name)
+                           5             ;exact match
+                           1)))))
+  (define (name-relevance regexps name)
+    (let loop ((regexps regexps)
+               (total-score 0))
+      (match regexps
+	((head . tail)
+	 (let ((score (name-score head name)))
+           ;; Return zero if one of PATTERNS doesn't match.
+           (if (zero? score)
+               0
+               (loop tail (+ total-score score)))))
+	(() total-score))))
+
+  (fold-available-packages
+   (lambda* (name version result #:key deprecated? #:allow-other-keys)
+     (let ((relevance (name-relevance regexps name)))
+       (cond
+	((or deprecated?
+	     (zero? relevance))
+	 result)
+	(else
+         (cons (cons (packagekit-id
+		      name
+		      version
+		      #:installed?
+		      (package-installed? name version installed))
 		     relevance)
                result)))))
    '()))
@@ -59,10 +100,10 @@
                (match m2
                  ((package2 . score2)
                   (if (= score1 score2)
-                      (if (string=? (package-name package1)
-                                    (package-name package2))
-                          (version>? (package-version package1)
-                                     (package-version package2))
-                          (string>? (package-name package1)
-                                    (package-name package2)))
+                      (if (string=? (packagekit-id-name package1)
+                                    (packagekit-id-name package2))
+                          (version>? (packagekit-id-version package1)
+                                     (packagekit-id-version package2))
+                          (string>? (packagekit-id-name package1)
+                                    (packagekit-id-name package2)))
                       (> score1 score2)))))))))

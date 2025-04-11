@@ -21,7 +21,11 @@
   #:use-module ((ice-9 optargs) #:select (define*-public))
   #:use-module (guix packages)
   #:use-module (ice-9 match)
-  #:use-module (srfi srfi-9))
+  #:use-module (srfi srfi-9)
+  #:export (packagekit-id-name
+	    packagekit-id-version
+	    packagekit-id-arch
+	    packagekit-id-data))
 
 (define-record-type <packagekit-id>
   (make-packagekit-id name version arch data)
@@ -67,3 +71,12 @@
    (package-version package)
    ""
    (if installed? "installed" "")))
+
+(define*-public (packagekit-id name version #:optional (arch "") (data "") #:key (installed? #f))
+  (make-packagekit-id
+   name
+   version
+   arch
+   (string-append
+    data
+    (if installed? "installed" ""))))

@@ -27,12 +27,12 @@
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11))
 
-(define (make-package-result packages)
-  (map (lambda (package)
+(define (make-package-result pk-ids)
+  (map (lambda (pk-id)
 	 (cons
-	  (packagekit-id->string (package->packagekit-id package))
-	  (package-description package)))
-       packages))
+	  (packagekit-id->string pk-id)
+	  (package-description (packagekit-id->package pk-id))))
+       pk-ids))
 
 (define (package-license-string package)
   ;; TODO: use licenses->project-license from #76661
@@ -56,7 +56,7 @@
   (make-package-result
    (map first
 	(sort-packages
-	 (search-packages regexps)))))
+	 (search-packages-fast regexps)))))
 
 (define-public (pk-resolve package-ids)
   (make-package-result
