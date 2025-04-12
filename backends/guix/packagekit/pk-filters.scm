@@ -25,7 +25,7 @@
 					  package-version))
   #:use-module (srfi srfi-1))
 
-(define (package-installed? package)
+(define-public (package-installed? package)
   "If PACKAGE is installed."
   (define installed (installed-packages)) ;TODO: cache this
   (let ((search (cons (package-name package) (package-version package))))

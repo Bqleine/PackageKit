@@ -20,6 +20,7 @@
  */
 
 #include "pk-guile-interface.h"
+#include "libguile/boolean.h"
 #include "libguile/foreign.h"
 #include "libguile/list.h"
 #include "libguile/load.h"
@@ -158,15 +159,18 @@ static void
 submit_package_list (PkBackendJob *job, SCM packages)
 {
 	SCM package;
-	PkInfoEnum info = PK_INFO_ENUM_AVAILABLE;
 	const gchar *package_id;
 	const gchar *package_description;
+	gboolean installed;
+	PkBitfield info;
 
 	if (scm_is_true (scm_null_p(packages)))
 		return;
 	package = scm_car (packages);
 	package_id = scm_to_locale_string (scm_car (package));
-	package_description = scm_to_locale_string (scm_cdr (package));
+	package_description = scm_to_locale_string (scm_cadr (package));
+	installed = scm_to_bool (scm_cddr (package));
+	info = installed ? PK_INFO_ENUM_INSTALLED : PK_INFO_ENUM_AVAILABLE;
 	pk_backend_job_package (job, info, package_id, package_description);
 	submit_package_list (job, scm_cdr (packages));
 }
@@ -190,7 +194,7 @@ submit_package_list_details (PkBackendJob *job, SCM packages)
 	package_license = scm_to_locale_string (scm_pop (&package));
 	package_homepage = scm_to_locale_string (scm_pop (&package));
 	pk_backend_job_details(job, package_id, package_synopsis, package_license, PK_GROUP_ENUM_UNKNOWN, package_description, package_homepage, 0);
-	submit_package_list (job, scm_cdr (packages));
+	submit_package_list_details (job, scm_cdr (packages));
 }
 
 /* Gets the search and filters from a job’s parameters and turns them

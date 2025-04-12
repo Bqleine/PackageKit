@@ -30,9 +30,12 @@
 
 (define (make-package-result packages)
   (map (lambda (package)
-	 (cons
-	  (packagekit-id->string (package->packagekit-id package))
-	  (package-description package)))
+	 (let ((installed? (package-installed? package)))
+	   (cons*
+	    (packagekit-id->string
+	     (package->packagekit-id package #:installed? installed?))
+	    (package-description package)
+	    installed?)))
        packages))
 
 (define (package-license-string package)
