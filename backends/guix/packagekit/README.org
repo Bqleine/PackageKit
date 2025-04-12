@@ -1,0 +1,18 @@
+* Guix packagekit guile interface
+This is a guile interface to allow the packagekit daemon to interact
+with guix, this allows us to use the guix’s guile API directly.
+
+** Filters
+
+The following filters will be supported:
+- installed or ~installed
+- free or ~free
+- arch or ~arch
+
+** Queries
+
+Queries are made with the following steps:
+1. Find a list of candidate packages for the given query.
+2. Associate packages with related information for filters (installed?, available?).
+3. Filter the list depending on the query.
+4. Return the information as lists for the C daemon.
