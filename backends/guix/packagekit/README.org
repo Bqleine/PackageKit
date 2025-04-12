@@ -6,7 +6,6 @@ with guix, this allows us to use the guix’s guile API directly.
 
 The following filters will be supported:
 - installed or ~installed
-- free or ~free
 - arch or ~arch
 
 ** Queries
