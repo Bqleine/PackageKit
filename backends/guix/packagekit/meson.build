@@ -18,6 +18,7 @@ module_sources = [
     'pk-id.scm',
     'pk-query.scm',
     'pk-profile.scm',
+    'pk-filters.scm',
     'pk-guile-interface.scm',
 ]
 

@@ -25,15 +25,15 @@
 					  package-version))
   #:use-module (srfi srfi-1))
 
-(define %supported-filters
-  `((installed . ,package-installed?)
-    (arch . ,supported-package?)))
-
 (define (package-installed? package)
   "If PACKAGE is installed."
   (define installed (installed-packages)) ;TODO: cache this
   (let ((search (cons (package-name package) (package-version package))))
     (->bool (member search installed))))
+
+(define %supported-filters
+  `((installed . ,package-installed?)
+    (arch . ,supported-package?)))
 
 (define-public (parse-filters str)
   "Parses a packagekit filter string into a list of filters."

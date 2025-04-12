@@ -24,6 +24,7 @@
   #:use-module (packagekit pk-id)
   #:use-module (packagekit pk-profile)
   #:use-module (packagekit pk-query)
+  #:use-module (packagekit pk-filters)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11))
 
@@ -52,23 +53,26 @@
 	(package-license-string package)
 	(package-home-page package)))
 
-(define-public (pk-search regexps)
+(define-public (pk-search regexps filters)
   (make-package-result
-   (map
-    (lambda (entry)
-      (packagekit-id->package (first entry)))
-    (sort-packages
-     (search-packages-fast regexps)))))
-
-(define-public (pk-resolve package-ids)
-  (make-package-result
-   (concatenate
+   (filter-packages
     (map
-     (lambda (requested-name)
-       (let-values (((name version)
-		     (package-name->name+version requested-name)))
-	 (find-packages-by-name name version)))
-     package-ids))))
+     (compose packagekit-id->package first)
+     (sort-packages
+      (search-packages-fast regexps)))
+    filters)))
+
+(define-public (pk-resolve package-ids filters)
+  (make-package-result
+   (filter-packages
+    (concatenate
+     (map
+      (lambda (requested-name)
+	(let-values (((name version)
+		      (package-name->name+version requested-name)))
+	  (find-packages-by-name name version)))
+      package-ids))
+   filters)))
 
 (define-public (pk-get-details package-ids)
   (fold

@@ -23,6 +23,7 @@
 #include "libguile/foreign.h"
 #include "libguile/list.h"
 #include "libguile/load.h"
+#include "libguile/scm.h"
 #include "libguile/strings.h"
 #include "pk-backend-job.h"
 #include "pk-backend.h"
@@ -128,6 +129,31 @@ args_to_scm_list (const gchar **args)
 	return scm_cons(scm_from_locale_string(*args), args_to_scm_list (args + 1));
 }
 
+static SCM
+alist_cons_filter(SCM alist, const char *filter, gboolean negated)
+{
+	return scm_cons (
+		scm_cons(
+			scm_from_utf8_symbol (filter),
+			scm_from_bool (negated)),
+		alist);
+}
+
+static SCM
+filters_to_scm_alist (const PkBitfield filters)
+{
+	SCM alist = SCM_EOL;
+	if (pk_bitfield_contain (filters, PK_FILTER_ENUM_INSTALLED))
+		alist = alist_cons_filter (alist, "installed", TRUE);
+	if (pk_bitfield_contain (filters, PK_FILTER_ENUM_NOT_INSTALLED))
+		alist = alist_cons_filter (alist, "installed", FALSE);
+	if (pk_bitfield_contain (filters, PK_FILTER_ENUM_ARCH))
+		alist = alist_cons_filter (alist, "arch", FALSE);
+	if (pk_bitfield_contain (filters, PK_FILTER_ENUM_NOT_ARCH))
+		alist = alist_cons_filter (alist, "arch", TRUE);
+	return alist;
+}
+
 static void
 submit_package_list (PkBackendJob *job, SCM packages)
 {
@@ -167,13 +193,11 @@ submit_package_list_details (PkBackendJob *job, SCM packages)
 	submit_package_list (job, scm_cdr (packages));
 }
 
-// Procedures to be used with call_with_guile.
-
 /* Gets the search and filters from a job’s parameters and turns them
- * into a scheme list written to PACKAGES that can be given to the
- * guile interface */
+ * into scheme lists written to PACKAGES and FILTERS that can be given
+ * to the guile interface */
 static gboolean
-search_and_filters_to_scm (const struct guix_job_data *data, SCM *packages)
+search_and_filters_to_scm (const struct guix_job_data *data, SCM *scm_packages, SCM *scm_filters)
 {
 	const gchar **search;
 	PkBitfield filters;
@@ -184,11 +208,12 @@ search_and_filters_to_scm (const struct guix_job_data *data, SCM *packages)
 		pk_backend_job_error_code (job, PK_ERROR_ENUM_PACKAGE_ID_INVALID, "No search provided");
 		return FALSE;
 	}
-	*packages = args_to_scm_list (search);
+	*scm_packages = args_to_scm_list (search);
+	*scm_filters = filters_to_scm_alist (filters);
 	return TRUE;
 }
 
-/* Gets the search from a job’s parameters and turns them into a
+/* Gets the search from a job’s parameters and turns it into a
  * scheme list written to PACKAGES that can be given to the guile
  * interface */
 static gboolean
@@ -206,16 +231,20 @@ search_to_scm (const struct guix_job_data *data, SCM *packages)
 	return TRUE;
 }
 
+
+// Functions to be used as arguments to call_with_guile.
+
 void
 guix_search (const struct guix_job_data *data)
 {
 	SCM result;
 	SCM search;
+	SCM filters;
 
-	if (!search_and_filters_to_scm (data, &search))
+	if (!search_and_filters_to_scm (data, &search, &filters))
 		return;
 	pk_backend_job_set_status(data->job, PK_STATUS_ENUM_QUERY);
-	result = scm_call_1(scm_variable_ref (scm_pk_search), search);
+	result = scm_call_2(scm_variable_ref (scm_pk_search), search, filters);
 	submit_package_list (data->job, result);
 }
 
@@ -224,11 +253,12 @@ guix_resolve (const struct guix_job_data *data)
 {
 	SCM result;
 	SCM search;
+	SCM filters;
 
-	if (!search_and_filters_to_scm (data, &search))
+	if (!search_and_filters_to_scm (data, &search, &filters))
 		return;
 	pk_backend_job_set_status(data->job, PK_STATUS_ENUM_QUERY);
-	result = scm_call_1(scm_variable_ref (scm_pk_resolve), search);
+	result = scm_call_2(scm_variable_ref (scm_pk_resolve), search, filters);
 	submit_package_list (data->job, result);
 }
 
@@ -248,8 +278,9 @@ static void
 guix_package (const struct guix_job_data *data, SCM action)
 {
 	SCM packages;
+	SCM filters;
 
-	if (!search_and_filters_to_scm (data, &packages))
+	if (!search_and_filters_to_scm (data, &packages, &filters))
 		return;
 	scm_call_1 (scm_variable_ref(action), packages);
 	pk_backend_job_finished(data->job);
