@@ -71,17 +71,16 @@
      package-ids))))
 
 (define-public (pk-get-details package-ids)
-  (define get-package
-    (compose packagekit-id->package string->packagekit-id))
-
-  (cond
-   ((null? package-ids) '())
-   (else
-    (let ((package (get-package (car package-ids))))
-      (if package
+  (fold
+   (lambda (package-id result)
+     (let ((package (packagekit-id->package
+		     (string->packagekit-id package-id))))
+       (if package
 	  (cons (make-package-details-result package)
-		(pk-get-details (cdr package-ids)))
-	  (pk-get-details (cdr package-ids)))))))
+		 result)
+	 result)))
+   '()
+   package-ids))
 
 (define-public (pk-install package-ids)
   (profile-install (map string->packagekit-id package-ids)))
